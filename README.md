@@ -1,4 +1,4 @@
-# YapNotifier
+# YapNotifierSA
 
 A TeamSpeak 3 overlay for GTA San Andreas multiplayer (SA-MP). Shows who is in your channel, who is talking, muted or away, plus join/leave/whisper notifications and a chat feed, drawn inside the game.
 
