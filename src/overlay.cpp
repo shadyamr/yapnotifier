@@ -6,6 +6,7 @@
 #include "log.h"
 #include "menu.h"
 #include "render_d3d9.h"
+#include "samp.h"
 #include "teamspeak.h"
 #include "ui_files.h"
 #include "update.h"
@@ -35,6 +36,7 @@ Rml::Vector2i g_size{0, 0};
 
 bool g_arrow = false;   // we own the cursor (no SA-MP cursor): answer WM_SETCURSOR ourselves
 bool g_game_lock = false;
+bool g_samp_cursor = false;  // SA-MP 0.3.DL R1 owns the cursor/lock while the menu is open
 int g_cursor_shows = 0; // ShowCursor(TRUE) calls to undo on close
 
 // RmlUi's Win32 system interface, except the cursor: the stock one also writes GCLP_HCURSOR into
@@ -194,13 +196,18 @@ void set_menu(bool open) {
     menu::show(open);
     hud::edit(open ? &g_cfg : nullptr);
     if (open) {
-        g_game_lock = game::lock_input(true);
-        g_arrow = true;
-        show_cursor(true);
+        // SA-MP 0.3.DL R1 has its own lock (cursor + frozen camera/controls, as its dialogs use) and
+        // rewrites the same gta_sa.exe bytes on every mode change, so never patch them under it.
+        g_samp_cursor = samp::available() && samp::set_cursor(true);
+        if (!g_samp_cursor) {
+            g_game_lock = game::lock_input(true);
+            g_arrow = true;
+            show_cursor(true);
+        }
     } else {
+        if (g_samp_cursor) samp::set_cursor(false);
         if (g_game_lock) game::lock_input(false);
-        g_game_lock = false;
-        g_arrow = false;
+        g_samp_cursor = g_game_lock = g_arrow = false;
         show_cursor(false);
     }
 }
@@ -247,6 +254,7 @@ void frame_unguarded() {
     const float dt_ms = g_last_frame ? static_cast<float>(std::min<ULONGLONG>(now - g_last_frame, 250)) : 16.f;
     g_last_frame = now;
     game::subclass_window(&on_message, now, GetModuleHandleW(L"samp.dll") != nullptr);
+    g_blocked = samp::typing();  // the init thread's hotkey poll reads this
 
     if (g_want_menu.exchange(false)) set_menu(!g_menu_open);
     if (g_want_hide.exchange(false)) {
@@ -286,8 +294,9 @@ void frame_unguarded() {
 void on_fault() {
     g_dead = true;
     if (g_renderer) g_renderer->end_frame();  // put the device state back if we died mid-draw
+    if (g_samp_cursor) samp::set_cursor(false);
     game::lock_input(false);                  // idempotent; also covers a fault inside lock_input(true)
-    g_game_lock = g_arrow = false;
+    g_samp_cursor = g_game_lock = g_arrow = false;
     show_cursor(false);
     log::error("overlay: fault in the frame; overlay disabled for this session, game unaffected");
 }
