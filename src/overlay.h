@@ -3,11 +3,8 @@
 
 #include "config.h"
 
-// The overlay is a separate, transparent, top-most, click-through window with its
-// OWN D3D11 device — it does NOT hook the game's renderer or subclass the game
-// window. FiveM's anti-cheat (adhesive) terminates the process a minute or so
-// after any IDXGISwapChain::Present hook or game-window subclass, so we own our
-// window and touch nothing of the game's. Approach borrowed from tcpstorm/vlights.
+// The overlay draws RmlUi inside GTA San Andreas through the game's own D3D9 device, from a hook
+// on the game's frame (see game.h); all RmlUi work runs on the game thread.
 namespace yap::overlay {
 
 // Call before start().
