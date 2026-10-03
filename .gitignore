@@ -2,3 +2,4 @@ build/
 out/
 .vs/
 *.log
+docs/superpowers/specs/2026-10-03-samp-port-design.md
