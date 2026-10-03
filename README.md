@@ -11,7 +11,7 @@ Two parts, one release:
 
 ## Install
 
-1. Download both files from the [latest release](https://github.com/shadyamr/yapnotifierSA/releases/latest).
+1. Download both files from the [latest release](https://github.com/shadyamr/yapnotifier/releases/latest).
 2. **Overlay:** copy `YapNotifierSA.asi` into your GTA San Andreas folder (where `gta_sa.exe` is) or its `scripts` folder. You need an ASI loader: Silent's ASI Loader, or the one that comes with CLEO. GTA SA must be version 1.0 US, which SA-MP needs anyway.
 3. **TeamSpeak plugin:** double-click `YapNotifier.ts3_plugin`. TeamSpeak installs it and asks to enable it (or enable it under *Tools → Options → Addons*).
 4. Start SA-MP. Join a channel in TeamSpeak and the roster appears.
