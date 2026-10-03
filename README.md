@@ -12,7 +12,7 @@ Two parts, one release:
 ## Install
 
 1. Download both files from the [latest release](https://github.com/shadyamr/yapnotifier/releases/latest).
-2. **Overlay:** copy `YapNotifierSA.asi` into your GTA San Andreas folder (where `gta_sa.exe` is) or its `scripts` folder. You need an ASI loader: Silent's ASI Loader, or the one that comes with CLEO. GTA SA must be version 1.0 US, which SA-MP needs anyway.
+2. **Overlay:** copy `YapNotifierSA.asi` into your GTA San Andreas folder (where `gta_sa.exe` is) or its `scripts` folder. You need an ASI loader: Silent's ASI Loader or Ultimate ASI Loader. GTA SA must be version 1.0 US, which SA-MP needs anyway.
 3. **TeamSpeak plugin:** double-click `YapNotifier.ts3_plugin`. TeamSpeak installs it and asks to enable it (or enable it under *Tools → Options → Addons*).
 4. Start SA-MP. Join a channel in TeamSpeak and the roster appears.
 
@@ -36,7 +36,7 @@ Files, next to the `.asi`:
 ## Notes
 
 - Only the **active** TeamSpeak tab is mirrored.
-- SA-MP 0.3.DL: the menu uses SA-MP's cursor, and the hotkeys are ignored while you're typing in chat or a dialog is open. Other SA-MP versions and single-player work too, with the overlay's own cursor. SA-MP's chat and dialogs draw on top of the overlay.
+- SA-MP 0.3.DL: the menu uses SA-MP's cursor, and the hotkeys are ignored while you're typing in chat or a dialog is open. Tested on SA-MP 0.3.DL R1 only. On other SA-MP versions and in single-player the overlay falls back to its own cursor and camera lock, which hasn't been tested in-game yet (reports welcome). SA-MP's chat and dialogs draw on top of the overlay.
 - If the roster shows *TS3 plugin outdated*, update `YapNotifier.ts3_plugin`.
 - If nothing shows up: check `YapNotifier.log` next to the `.asi` (it says whether the game hook was installed), make sure an ASI loader is installed and GTA SA is 1.0 US, and that nothing else is bound to UDP 25640.
 

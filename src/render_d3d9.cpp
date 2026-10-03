@@ -75,6 +75,14 @@ bool D3D9::begin_frame(Rml::Vector2i& size) {
     dev_->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
     dev_->SetRenderState(D3DRS_SCISSORTESTENABLE, FALSE);
     dev_->SetRenderState(D3DRS_STENCILENABLE, FALSE);
+    // GTA's stencil shadows / RenderWare may leave these non-default; the state block restores them.
+    dev_->SetRenderState(D3DRS_TWOSIDEDSTENCILMODE, FALSE);
+    dev_->SetRenderState(D3DRS_STENCILMASK, 0xFFFFFFFF);
+    dev_->SetRenderState(D3DRS_STENCILWRITEMASK, 0xFFFFFFFF);
+    dev_->SetRenderState(D3DRS_CLIPPLANEENABLE, 0);
+    dev_->SetRenderState(D3DRS_VERTEXBLEND, D3DVBF_DISABLE);
+    dev_->SetRenderState(D3DRS_INDEXEDVERTEXBLENDENABLE, FALSE);
+    dev_->SetRenderState(D3DRS_WRAP0, 0);
     dev_->SetRenderState(D3DRS_FOGENABLE, FALSE);
     dev_->SetRenderState(D3DRS_RANGEFOGENABLE, FALSE);
     dev_->SetRenderState(D3DRS_SPECULARENABLE, FALSE);
@@ -86,6 +94,7 @@ bool D3D9::begin_frame(Rml::Vector2i& size) {
     dev_->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
     dev_->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
     dev_->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    dev_->SetTextureStageState(0, D3DTSS_RESULTARG, D3DTA_CURRENT);
     dev_->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0);
     dev_->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
     dev_->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
@@ -95,6 +104,7 @@ bool D3D9::begin_frame(Rml::Vector2i& size) {
     dev_->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     dev_->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     dev_->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+    dev_->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, 0);
 
     D3DMATRIX proj{};
     render_math::ortho_projection(static_cast<float>(rd.Width), static_cast<float>(rd.Height), &proj._11);

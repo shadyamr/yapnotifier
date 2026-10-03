@@ -100,7 +100,7 @@ The frame-hook body runs through an `__try` wrapper, as `create_device` does tod
 ### Updater (`src/update.cpp`)
 The asset name becomes **`YapNotifierSA.asi`**. Existing FiveM installs look for an asset named exactly `YapNotifier.asi`; finding none, they log and stay on 0.4.1, so they never download an x86 GTA SA binary. The swap mechanics (rename running file to `.old`, digest check) are unchanged. User-facing text becomes "restart GTA SA to apply".
 
-### Release (0.5.0)
+### Release (0.5.0; shipped by the user as 1.0.0 under the shadyamr/yapnotifier repo)
 - `YAP_VERSION` and `YAP_VERSION_NUM` become 0.5.0; so does `ts3plugin/package.ini` `Version`, and its description says SA-MP.
 - CI (`.github/workflows/build.yml`): `-A Win32`, collect `build/Release/YapNotifierSA.asi` + `.pdb` + `build/YapNotifier.ts3_plugin`. The version and CHANGELOG checks stay.
 - `CHANGELOG.md` `## 0.5.0`: now a GTA SA / SA-MP overlay; FiveM users stay on 0.4.1; install instructions pointer.
@@ -116,7 +116,7 @@ All addresses are for `gta_sa.exe` 1.0 US or are RVAs into `samp.dll` 0.3.DL R1.
 
 | Name | Value | Source | Conf |
 |---|---|---|---|
-| `CFont::DrawFonts` call in `Idle` (frame hook) | 0x53EBB1 | PSDK `shared/Events.h` L360 (`drawFontsEvent`) | M (target unverified in binary) |
+| `CFont::DrawFonts` call in `Idle` (frame hook) | 0x53EBB1 | PSDK `shared/Events.h` L360 (`drawFontsEvent`) | M, confirmed in-game (the hook runs) |
 | `_RwD3DDevice` | 0xC97C28 | PSDK `common.cpp` L602; GR `RenderWare.h` L30 | H |
 | Game HWND copy | 0xC97C1C | GR `WindowedMode.cpp` L107 | H |
 | `MainWndProc` | 0x747EB0 | GR `WndProc.cpp` L27, L293 | H |
@@ -128,8 +128,8 @@ All addresses are for `gta_sa.exe` 1.0 US or are RVAs into `samp.dll` 0.3.DL R1.
 | samp DL R1 entry-point RVA | 0xFDB60 | SampX `SampVersions.cpp` L37 | H |
 | samp `RefGame` | +0x2ACA3C | SAMP-API `CGame.cpp` L22–24 | H |
 | samp `CGame::SetCursorMode` | +0xA0530 | SAMP-API `CGame.cpp` L38–39 | H |
-| samp `RefInputBox` / `m_bEnabled` | +0x2ACA14 / +0x14E0 | SAMP-API `CInput.cpp` L14–15, `CInput.h` L24–31 | H / M |
-| samp `RefDialog` / `m_bIsActive` | +0x2AC9E0 / +0x28 | SAMP-API `CDialog.cpp` L14–15, `CDialog.h` L35 | H / M |
+| samp `RefInputBox` / `m_bEnabled` | +0x2ACA14 / +0x14E0 | SAMP-API `CInput.cpp` L14–15, `CInput.h` L24–31 | H / confirmed in-game (typing gate works) |
+| samp `RefDialog` / `m_bIsActive` | +0x2AC9E0 / +0x28 | SAMP-API `CDialog.cpp` L14–15, `CDialog.h` L35 | H / confirmed in-game (typing gate works) |
 
 ## Implementation order
 

@@ -205,7 +205,8 @@ void set_menu(bool open) {
             show_cursor(true);
         }
     } else {
-        if (g_samp_cursor) samp::set_cursor(false);
+        // A dialog that opened meanwhile still needs SA-MP's cursor mode; it resets it itself on close.
+        if (g_samp_cursor && !samp::dialog_open()) samp::set_cursor(false);
         if (g_game_lock) game::lock_input(false);
         g_samp_cursor = g_game_lock = g_arrow = false;
         show_cursor(false);
@@ -254,7 +255,9 @@ void frame_unguarded() {
     const float dt_ms = g_last_frame ? static_cast<float>(std::min<ULONGLONG>(now - g_last_frame, 250)) : 16.f;
     g_last_frame = now;
     game::subclass_window(&on_message, now, GetModuleHandleW(L"samp.dll") != nullptr);
-    g_blocked = samp::typing();  // the init thread's hotkey poll reads this
+    // The init thread's hotkey poll reads this. Chat can't open while the menu swallows keys, and a
+    // server dialog must not trap the menu open (INSERT has to be able to close it).
+    g_blocked = !g_menu_open && samp::typing();
 
     if (g_want_menu.exchange(false)) set_menu(!g_menu_open);
     if (g_want_hide.exchange(false)) {

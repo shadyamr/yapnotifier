@@ -18,6 +18,8 @@ bool available();
 // CGame::SetCursorMode: on = LOCKCAMANDCONTROL (cursor, camera and player frozen), off = NONE.
 // False if unavailable or it faulted (which switches the integration off for the session).
 bool set_cursor(bool on);
+// A SA-MP dialog is open.
+bool dialog_open();
 // SA-MP's chat input or a dialog is open.
 bool typing();
 

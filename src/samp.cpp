@@ -11,7 +11,8 @@
 namespace yap::samp {
 namespace {
 // samp.dll 0.3.DL R1, RVAs from BlastHackNet/SAMP-API @6d4db99a (include/sampapi/0.3.DL-1), entry
-// point from RinatNamazov/SampX SampVersions.cpp. Field offsets verified live (spec, Task 0).
+// point from RinatNamazov/SampX SampVersions.cpp. Field offsets confirmed in-game on 0.3.DL R1
+// by the typing gate (chat/dialog block the hotkeys); not separately checked in Cheat Engine.
 constexpr uint32_t kEntryDL_R1 = 0xFDB60;
 constexpr uintptr_t kRefGame = 0x2ACA3C;       // CGame*
 constexpr uintptr_t kSetCursorMode = 0xA0530;  // void CGame::SetCursorMode(int mode, BOOL bImmediatelyHideCursor)
@@ -103,6 +104,7 @@ bool set_cursor(bool on) {
     return false;
 }
 
-bool typing() { return flag(kRefInput, kInputEnabled) || flag(kRefDialog, kDialogActive); }
+bool dialog_open() { return flag(kRefDialog, kDialogActive); }
+bool typing() { return flag(kRefInput, kInputEnabled) || dialog_open(); }
 
 }  // namespace yap::samp
