@@ -21,36 +21,37 @@ This spec supersedes the window/DirectComposition/DX11/raw-input/foreground-gati
 - `YapNotifier.ts3_plugin`: x64, unchanged apart from its description string.
 
 ### Threads
-- **Init thread** (`src/main.cpp`, spawned from `DllMain`): unchanged role. It loads the INI, starts the listener, runs the updater, and polls the hotkeys (`GetAsyncKeyState`, only while this process is in the foreground). New: a hotkey edge is ignored while `samp::typing()` is true. The menu toggle only sets an atomic flag; it no longer posts a window message.
+- **Init thread** (`src/main.cpp`, spawned from `DllMain`): unchanged role. It loads the INI, starts the listener, runs the updater, and polls the hotkeys (`GetAsyncKeyState`, only while this process is in the foreground). New: a hotkey edge is ignored while SA-MP reports typing. The game thread reads `samp::typing()` each frame and publishes it as `overlay::Hotkeys::blocked`, so the init thread never touches SA-MP memory. The menu toggle only sets an atomic flag; it no longer posts a window message.
 - **Game thread** (new home for all UI work): our frame hook (below) runs on GTA's main thread inside BeginScene/EndScene. The first call initialises RmlUi. After that, each call runs the existing per-frame sequence: apply a pending menu/HUD toggle, drain `ts::drain_events` into `hud::feed`, `hud::sync` + `menu::sync`, `Context::Update`, then render both contexts through `render_d3d9`. The old UI thread, window, message loop and `Sleep(16)` pacing are deleted; we run at the game's frame rate.
 - **Listener thread** (`src/teamspeak.cpp`): unchanged.
 
 ### `src/game.cpp` (new): everything that knows `gta_sa.exe` addresses
 - **Frame hook, installed in `DllMain`.** ASI loaders run us before `WinMain` (Silent's loader hooks the CRT's `GetStartupInfo` import), so the patch is in place before the first frame. It is a `VirtualProtect` + 5-byte write, with no library loads under the loader lock. The hook site is the `E8` call to `CFont::DrawFonts` at **0x53EBB1** in `Idle`. It is the last draw of the frame, after the pause menu, `DoFade` and `CHud::DrawAfterFade`, so it also runs while the game is paused. Before patching:
-  - check that the byte at 0x53EBB1 is `E8` and that the call target lies inside `gta_sa.exe`'s image;
+  - check that this is 1.0 US (the dword at 0x401000 is `0x53EC8B55` for the compact exe or `0x16197BE9` for hoodlum; plugin-sdk `GameVersion.cpp`);
+  - check that the byte at 0x53EBB1 is `E8` and that the call target is executable memory (it may be inside another mod that chained the call first);
   - store the **current** target (another mod may already have chained this call) and call it first from our hook, then draw.
-  - If the check fails (a non-1.0 US exe or an incompatible patch), log it and stay dormant.
+  - If either check fails, log it and stay dormant.
 
   The pre-game main menu goes through `FrontendIdle` and is not hooked. SA-MP never shows it.
 - **Device:** read `*(IDirect3DDevice9**)0xC97C28` (`_RwD3DDevice`) each frame and draw through whatever is there. After SA-MP's init that is SA-MP's forwarding proxy, which is fine.
 - **Window:** the HWND is `*(HWND*)0xC97C1C`.
 - **WndProc subclass, installed from the frame hook.** We install once, after GTA's `MainWndProc` (**0x747EB0**) has been replaced as the window procedure, so we sit above SA-MP's subclass and see every message first. Conditions:
-  - if `GetWindowLongPtrW(hwnd, GWLP_WNDPROC) != 0x747EB0`, install now;
-  - else if `samp.dll` is not loaded, install now (single-player);
+  - if the window procedure is no longer 0x747EB0, install now;
+  - else if `samp.dll` is not loaded, install after 3 s (in case it is injected late);
   - else, after 10 s of frames, install anyway.
 
-  We chain with `CallWindowProcW` to the saved previous procedure and never uninstall.
+  GTA's window is ANSI, so we read and set the procedure with the `A` functions and chain with `CallWindowProcA` (keeps SA-MP's chat input seeing the messages it expects). We never uninstall.
 - **Camera/controls lock without SA-MP** (`lock_input(bool)`), copied from SA-MP's own `CGame::ToggleKeyInputsDisabled` (dashr9230/SA-MP `saco/game/game.cpp` L177–330):
   - NOP 5 bytes at 0x541DF5 (`CPad::UpdatePads` → `AffectPadFromKeyBoard`);
   - NOP 5 bytes at 0x53F417 (`CPad::UpdateMouse` → `GetMouseState`) and write `33 C0 0F 84` at 0x53F41F;
   - zero 0xB73424 and 0xB73428 and call `CPad::ClearMouseHistory` (0x541BD0);
   - write `C3` at 0x6194A0 (`RsMouseSetPos`) so the game stops re-centring the cursor.
 
-  Before patching, each site is checked against its known original bytes (`E8 B4 7A 20 00`, `85 C0 0F 8C`, `E9` at 0x6194A0; the 0x541DF5 bytes are read and pinned during Task 0). Unlocking writes the saved originals back. On any mismatch we skip the lock and log it: the menu still works, the camera just isn't frozen.
-- **Cursor without SA-MP:** while the menu is open, the subclass answers `WM_SETCURSOR` with `SetCursor(LoadCursor(IDC_ARROW))` and returns TRUE. GTA's `MainWndProc` otherwise hides the cursor on that message.
+  Before patching, each site is checked against its known original bytes (`E8 46 F3 FE FF` at 0x541DF5, `E8 B4 7A 20 00` at 0x53F417, `85 C0 0F 8C` at 0x53F41F, `E9` at 0x6194A0; decomp `game.cpp` L218–251). Unlocking writes the originals back. On any mismatch we skip the lock and log it: the menu still works, the camera just isn't frozen.
+- **Cursor without SA-MP:** GTA keeps the cursor hidden (`ShowCursor(FALSE)` on `WM_SETCURSOR` and activation). Opening the menu calls `ShowCursor(TRUE)` until the display count is non-negative and remembers how many calls that took; closing undoes exactly that many. While the menu is open, the subclass answers `WM_SETCURSOR` with TRUE so GTA never sees it, and RmlUi's cursor shapes are set with `SetCursor` (our system-interface override; the stock one also writes the game's window-class cursor, which we don't want).
 
 ### `src/samp.cpp` (new): SA-MP 0.3.DL R1 integration
-- **Detection:** look `samp.dll` up lazily each frame with `GetModuleHandleW`, because it may load after us. It is 0.3.DL R1 exactly when the PE `OptionalHeader.AddressOfEntryPoint == 0xFDB60`. Any other value turns the module into a no-op, and we log the entry point once so a user's report identifies their version.
+- **Detection:** look `samp.dll` up lazily on the game thread with `GetModuleHandleW`, because it may load after us. It is 0.3.DL R1 exactly when the PE `OptionalHeader.AddressOfEntryPoint == 0xFDB60`. Any other value turns the module into a no-op, and we log the entry point once so a user's report identifies their version.
 - `bool available()`: DL R1 is loaded and `*(CGame**)(base + 0x2ACA3C)` is non-null.
 - `void set_cursor(bool on)`: calls `CGame::SetCursorMode` (thiscall at `base + 0xA0530`, `(int mode, BOOL immediatelyHideCursor)`) with `LOCKCAMANDCONTROL = 2` to open and `CURSOR_NONE = 0` to close. This replaces `game::lock_input` and the `WM_SETCURSOR` handling whenever `available()`. We never patch the pad bytes ourselves while SA-MP is present, because SA-MP rewrites them on every mode change.
 - `bool typing()`: reads chat input open (`*(CInput**)(base + 0x2ACA14)`, field `+0x14E0`) **or** dialog open (`*(CDialog**)(base + 0x2AC9E0)`, field `+0x28`). Null pointers read as false.
@@ -66,7 +67,7 @@ This spec supersedes the window/DirectComposition/DX11/raw-input/foreground-gati
   - Keys-tab VK capture on key-up;
   - menu context first, then mouse presses the menu left alone plus every move/release to the HUD context (edit-mode drags).
 
-  While the menu is open, every keyboard and mouse message (`WM_KEYFIRST..WM_KEYLAST`, `WM_MOUSEFIRST..WM_MOUSELAST`, `WM_CHAR`, `WM_INPUT`) is consumed after RmlUi sees it, so typing in a field never reaches SA-MP's chat or the game. While it is closed, every message passes straight to the previous procedure.
+  Mouse coordinates are rescaled from the client area to the back buffer when the two differ (windowed-mode mods that scale). While the menu is open, every keyboard and mouse message (`WM_KEYFIRST..WM_KEYLAST`, which includes `WM_CHAR`, and `WM_MOUSEFIRST..WM_MOUSELAST`) is consumed after RmlUi sees it, so typing in a field never reaches SA-MP's chat or the game. While it is closed, every message passes straight to the previous procedure.
 - **Deleted:** raw-input suspend/restore, `ClipCursor`, `SetForegroundWindow` hand-offs, `track_game_window`, foreground show/hide, the `WM_YAP_*` messages.
 
 ### `src/render_d3d9.cpp` (new): RmlUi 6.3 `RenderInterface` on D3D9 fixed-function
@@ -134,7 +135,7 @@ All addresses are for `gta_sa.exe` 1.0 US or are RVAs into `samp.dll` 0.3.DL R1.
 
 0. **Live verification (gate).** Using Cheat Engine on `gta_sa.exe` 1.0 US running SA-MP 0.3.DL R1, confirm:
    - the call target at 0x53EBB1 is `CFont::DrawFonts`;
-   - the original bytes at 0x541DF5;
+   - the original bytes at 0x541DF5 (`E8 46 F3 FE FF`);
    - `+0x14E0` toggles when chat input opens and `+0x28` toggles when a dialog opens;
    - DL's cursor mode 2 freezes the camera.
 
@@ -151,9 +152,10 @@ All addresses are for `gta_sa.exe` 1.0 US or are RVAs into `samp.dll` 0.3.DL R1.
   - `test_parser` and `test_ui` unchanged, now x86.
   - `test_parser` gains pure-helper cases:
     - RGBA → ARGB `D3DCOLOR` swizzle;
-    - the orthographic half-pixel projection (corners map to clip-space ±1 within 1e-6);
+    - the orthographic half-pixel projection (corners map to clip-space ±1 within 1e-5);
+    - the 1.0 US fingerprint (compact and hoodlum accepted, anything else rejected);
     - samp version detection from a synthetic PE header (0xFDB60 → DL R1; 0xCBC90 → unsupported);
-    - the call-site validator (`E8` + in-image target accepted; other opcodes and out-of-image targets rejected);
+    - the call-site decoder (`E8` decoded forwards and backwards; other opcodes rejected);
     - the updater's asset lookup (finds `YapNotifierSA.asi`, ignores `YapNotifier.asi`).
 - **Manual in-game checklist** (the overlay and hooks can't be automated):
   - exclusive fullscreen and windowed/borderless: the HUD draws, text is crisp, icons are tinted;
