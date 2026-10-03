@@ -57,7 +57,7 @@ Outputs `build/Release/YapNotifierSA.asi` and `build/YapNotifier.ts3_plugin`. Wi
 See `CLAUDE.md` for the architecture and `docs/superpowers/specs/` for the design documents.
 
 ## Credits
-
-- Contact/friend lookup from the TeamSpeak `settings.db` is adapted from TeamSpeak3-Reshade-overlay (MIT, `assets/LICENSE-tsro.txt`).
+- [Chocomint](https://github.com/chocomintw) - original author of this plugin.
+- [Shady](https://github.com/shadyamr) [myself] - conversion to GTA SA.
 - UI font: [Inter](https://rsms.me/inter/) (SIL OFL, `assets/OFL-Inter.txt`).
 - Rendering: [RmlUi](https://github.com/mikke89/RmlUi).
