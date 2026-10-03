@@ -61,7 +61,11 @@ set(YAP_ASI_SOURCES
   src/log.cpp
   src/colorpicker.cpp
   src/config.cpp
+  src/game.cpp
   src/overlay.cpp
+  src/patch.cpp
+  src/render_d3d9.cpp
+  src/samp.cpp
   src/hud.cpp
   src/icons.cpp
   src/menu.cpp
