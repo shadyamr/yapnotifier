@@ -275,7 +275,7 @@ EXPORT int ts3plugin_apiVersion() { return PLUGIN_API_VERSION; }
 EXPORT const char* ts3plugin_author() { return "YapNotifier"; }
 EXPORT const char* ts3plugin_description() {
     return "Mirrors your channel, who is talking, mute/away state, notifications and chat to the "
-           "YapNotifier FiveM overlay (localhost UDP).";
+           "YapNotifier GTA San Andreas / SA-MP overlay (localhost UDP).";
 }
 EXPORT void ts3plugin_setFunctionPointers(const TS3Functions funcs) { ts3 = funcs; }
 

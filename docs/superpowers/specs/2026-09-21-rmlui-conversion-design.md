@@ -1,5 +1,7 @@
 # YapNotifier: ImGui -> RmlUi conversion (design)
 
+> **Superseded for everything platform-specific** (FiveM, the overlay window, D3D11/DirectComposition, raw input) by `2026-10-03-samp-port-design.md`.
+
 ## Context
 
 The `.asi` overlay draws everything with Dear ImGui: `hud.cpp` paints straight into the background draw list, `menu.cpp` is 9 tabs of immediate-mode widgets, `icons.cpp` is ImDrawList geometry, `theme.h` is an ImGui style table. The user wants the UI on RmlUi (HTML/CSS-like retained documents) so layout, styling and animation move into RML/RCSS and the C++ shrinks to "publish state". This pass is a **conversion**: feature parity, same INI keys, same wire protocol, ImGui deleted at the end. New features come after.

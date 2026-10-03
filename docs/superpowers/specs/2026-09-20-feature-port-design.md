@@ -1,5 +1,7 @@
 # YapNotifier 0.2
 
+> **Superseded for everything platform-specific** (FiveM, the overlay window, D3D11/DirectComposition, raw input) by `2026-10-03-samp-port-design.md`.
+
 Ports the roster, state indicators, notifications, chat feed and customisation
 depth of the MIT-licensed ReShade addon into YapNotifier's own architecture
 (`.asi` with a standalone DirectComposition window + TS3 plugin over UDP).

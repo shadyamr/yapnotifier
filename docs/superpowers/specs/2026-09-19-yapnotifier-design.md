@@ -1,5 +1,7 @@
 # YapNotifier — Design
 
+> **Superseded for everything platform-specific** (FiveM, the overlay window, D3D11/DirectComposition, raw input) by `2026-10-03-samp-port-design.md`.
+
 TeamSpeak 3 "who's talking" overlay for FiveM. Two artifacts: an x64 `.asi` plugin loaded by FiveM's ASI loader, and a TeamSpeak 3 client plugin (`.ts3_plugin`) that feeds it.
 
 ## Scope
