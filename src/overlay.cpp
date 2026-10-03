@@ -116,10 +116,11 @@ bool init_rml() {
 void show_cursor(bool on) {
     if (on) {
         int count = 0;
-        do {
+        for (int i = 0; i < 64; ++i) {
             count = ShowCursor(TRUE);
             ++g_cursor_shows;
-        } while (count < 0 && g_cursor_shows < 64);
+            if (count >= 0) break;
+        }
         SetCursor(LoadCursorW(nullptr, IDC_ARROW));
     } else {
         for (; g_cursor_shows > 0; --g_cursor_shows) ShowCursor(FALSE);
@@ -141,7 +142,29 @@ LPARAM to_backbuffer(HWND h, UINT m, LPARAM l) {
 // Open: RmlUi gets the input (menu first, then mouse presses it left alone plus every move/release
 // to the HUD for edit-mode drags) and nothing else sees keyboard or mouse, so typing in a field
 // never reaches SA-MP's chat or the game.
-bool on_message(HWND h, UINT m, WPARAM w, LPARAM l, LRESULT& result) {
+// WM_CHAR on GTA's ANSI window carries a code-page byte (a DBCS character arrives as two messages);
+// RmlUi wants UTF-16. Returns false to swallow a lead byte until its trail byte arrives.
+bool widen_char(HWND h, UINT m, WPARAM& w) {
+    if (m != WM_CHAR || IsWindowUnicode(h)) return true;
+    static char lead = 0;
+    char bytes[2];
+    int n = 0;
+    const char c = static_cast<char>(w & 0xFF);
+    if (lead) {
+        bytes[n++] = lead;
+        lead = 0;
+    } else if (IsDBCSLeadByte(static_cast<BYTE>(c))) {
+        lead = c;
+        return false;
+    }
+    bytes[n++] = c;
+    wchar_t wc = 0;
+    if (MultiByteToWideChar(CP_ACP, 0, bytes, n, &wc, 1) != 1) return false;
+    w = static_cast<WPARAM>(wc);
+    return true;
+}
+
+bool on_message_impl(HWND h, UINT m, WPARAM w, LPARAM l, LRESULT& result) {
     if (!g_ready || g_dead.load() || !g_menu_open) return false;
     if (m == WM_SETCURSOR && g_arrow && LOWORD(l) == HTCLIENT) {
         result = TRUE;  // keep GTA from hiding it; RmlUi sets the shape
@@ -156,11 +179,13 @@ bool on_message(HWND h, UINT m, WPARAM w, LPARAM l, LRESULT& result) {
         if (m == WM_KEYUP || m == WM_SYSKEYUP) menu::capture_key(static_cast<int>(w));
         return true;
     }
+    if (key && !widen_char(h, m, w)) return true;
     const LPARAM ml = mouse ? to_backbuffer(h, m, l) : l;
     const bool free = RmlWin32::WindowProcedure(g_menu_ctx, g_ime, h, m, w, ml);
     const bool release = m == WM_MOUSEMOVE || m == WM_LBUTTONUP || m == WM_RBUTTONUP || m == WM_MBUTTONUP;
     if (g_rml && !g_cfg.hud_hidden && mouse && (free || release)) RmlWin32::WindowProcedure(g_rml, g_ime, h, m, w, ml);
-    return true;
+    // Key-ups also go on to the game, so a key held while the menu opened doesn't stay stuck.
+    return !(m == WM_KEYUP || m == WM_SYSKEYUP);
 }
 
 void set_menu(bool open) {
@@ -200,6 +225,8 @@ void sync_hud(float dt_ms, ULONGLONG now) {
     hud::feed(g_hud, g_cfg, events, now);
     hud::sync(g_hud, g_cfg, *ts::snapshot(), dt_ms, now, banner);
 }
+
+bool on_message(HWND h, UINT m, WPARAM w, LPARAM l, LRESULT& result);
 
 void frame_unguarded() {
     if (!g_configured.load(std::memory_order_acquire)) return;
@@ -241,6 +268,10 @@ void frame_unguarded() {
     g_hide_key = capturing ? 0 : g_cfg.hide_key;
     sync_hud(dt_ms, now);
     if (g_menu_open) {
+        if (g_arrow) {
+            CURSORINFO ci{sizeof ci};
+            if (GetCursorInfo(&ci) && !(ci.flags & CURSOR_SHOWING)) show_cursor(true);  // GTA hid it again
+        }
         menu::sync(*g_menu_host);
         if (!g_menu_host->open) set_menu(false);  // the window's [x]
     }
@@ -254,11 +285,11 @@ void frame_unguarded() {
 // Separate from frame() so the SEH frame holds no C++ objects (C2712).
 void on_fault() {
     g_dead = true;
-    if (g_game_lock) game::lock_input(false);
+    if (g_renderer) g_renderer->end_frame();  // put the device state back if we died mid-draw
+    game::lock_input(false);                  // idempotent; also covers a fault inside lock_input(true)
     g_game_lock = g_arrow = false;
     show_cursor(false);
     log::error("overlay: fault in the frame; overlay disabled for this session, game unaffected");
-    if (g_renderer) g_renderer->end_frame();  // put the device state back if we died mid-draw
 }
 
 bool on_fault_guarded() {
@@ -266,6 +297,16 @@ bool on_fault_guarded() {
         on_fault();
         return true;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// Window-subclass entry: no C++ objects here (C2712). A fault chains the message on to the game.
+bool on_message(HWND h, UINT m, WPARAM w, LPARAM l, LRESULT& result) {
+    __try {
+        return on_message_impl(h, m, w, l, result);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        on_fault_guarded();
         return false;
     }
 }

@@ -50,6 +50,7 @@ MsgFn g_on_message = nullptr;
 WNDPROC g_prev_proc = nullptr;
 bool g_ansi = false;  // GTA's window is ANSI: keep it ANSI so SA-MP's chat input sees what it expects
 uint64_t g_first_try = 0;
+uint64_t g_retry_at = 0;  // after a failed subclass attempt
 
 LRESULT CALLBACK subclass_proc(HWND h, UINT m, WPARAM w, LPARAM l) {
     LRESULT result = 0;
@@ -94,6 +95,7 @@ bool subclass_window(MsgFn on_message, uint64_t now_ms, bool samp_loaded) {
     if (g_prev_proc) return true;
     const HWND h = window();
     if (!h) return false;
+    if (now_ms < g_retry_at) return false;
     if (!g_first_try) g_first_try = now_ms;
     g_ansi = !IsWindowUnicode(h);
     const LONG_PTR cur = g_ansi ? GetWindowLongPtrA(h, GWLP_WNDPROC) : GetWindowLongPtrW(h, GWLP_WNDPROC);
@@ -106,7 +108,7 @@ bool subclass_window(MsgFn on_message, uint64_t now_ms, bool samp_loaded) {
                : SetWindowLongPtrW(h, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&subclass_proc)));
     if (!g_prev_proc) {
         log::error("game: subclassing the game window failed ({})", GetLastError());
-        g_first_try = now_ms + 60000;  // don't retry every frame
+        g_retry_at = now_ms + 60000;  // don't retry every frame
         return false;
     }
     log::info("game: window subclassed{}", replaced ? " above SA-MP" : "");
@@ -124,9 +126,9 @@ bool lock_input(bool on) {
         }
     }
     for (const auto& s : kInputSites) patch::apply(s, on);
+    g_locked = on;  // before the calls into game code, so a fault there still leaves lock_input(false) effective
     reset_mouse();
     if (on) reinterpret_cast<void(__cdecl*)()>(kUpdatePads)();
-    g_locked = on;
     return true;
 }
 
