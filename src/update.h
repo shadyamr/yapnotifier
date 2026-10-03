@@ -6,14 +6,18 @@
 #include <vector>
 
 // Self-updater. Checks the latest GitHub release once per launch; if newer,
-// downloads YapNotifier.asi, verifies it against GitHub's SHA-256 digest, and
+// downloads YapNotifierSA.asi, verifies it against GitHub's SHA-256 digest, and
 // swaps it into place. Windows lets a mapped DLL be renamed, so the swap is
-// immediate and the new file loads on the next FiveM start.
+// immediate and the new file loads on the next GTA SA start.
 namespace yap::update {
+
+// The release asset this build installs. FiveM builds (<= 0.4.1) look for "YapNotifier.asi"
+// instead, so they never pick up a GTA SA binary.
+inline constexpr std::string_view kAsiAsset = "YapNotifierSA.asi";
 
 struct Release {
     std::string tag;         // "v0.2.0"
-    std::string asi_url;     // browser_download_url of the YapNotifier.asi asset
+    std::string asi_url;     // browser_download_url of the YapNotifierSA.asi asset
     std::string asi_sha256;  // lowercase hex from the asset's "digest"; empty if absent
 };
 

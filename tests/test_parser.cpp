@@ -1,10 +1,15 @@
 // Host-side check for the pure logic: datagram parser, updater helpers.
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
 #include "teamspeak.h"
 #include "notify.h"
+#include "patch.h"
+#include "render_math.h"
+#include "samp.h"
 #include "roster.h"
 #include "update.h"
 #include "yap_protocol.h"
@@ -248,23 +253,28 @@ int main() {
         "{\"name\":\"YapNotifier.ts3_plugin\",\"digest\":\"sha256:"
         "1111111111111111111111111111111111111111111111111111111111111111\","
         "\"browser_download_url\":\"https://github.com/o/r/releases/download/v0.2.0/YapNotifier.ts3_plugin\"},"
-        "{\"name\":\"YapNotifier.asi\",\"size\":1,\"digest\":\"sha256:"
+        "{\"name\":\"YapNotifierSA.asi\",\"size\":1,\"digest\":\"sha256:"
         "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd\","
-        "\"browser_download_url\":\"https://github.com/o/r/releases/download/v0.2.0/YapNotifier.asi\"}"
+        "\"browser_download_url\":\"https://github.com/o/r/releases/download/v0.2.0/YapNotifierSA.asi\"}"
         "],\"body\":\"notes\"}";
     CHECK(parse_release(json, rel));
     CHECK(rel.tag == "v0.2.0");
-    CHECK(rel.asi_url == "https://github.com/o/r/releases/download/v0.2.0/YapNotifier.asi");
+    CHECK(rel.asi_url == "https://github.com/o/r/releases/download/v0.2.0/YapNotifierSA.asi");
     CHECK(rel.asi_sha256 == "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd");
 
     // asset without digest -> no hash (caller refuses to install)
-    CHECK(parse_release("{\"tag_name\":\"v0.3.0\",\"assets\":[{\"name\":\"YapNotifier.asi\","
-                        "\"browser_download_url\":\"https://x/YapNotifier.asi\"}]}", rel));
-    CHECK(rel.tag == "v0.3.0" && rel.asi_url == "https://x/YapNotifier.asi" && rel.asi_sha256.empty());
+    CHECK(parse_release("{\"tag_name\":\"v0.3.0\",\"assets\":[{\"name\":\"YapNotifierSA.asi\","
+                        "\"browser_download_url\":\"https://x/YapNotifierSA.asi\"}]}", rel));
+    CHECK(rel.tag == "v0.3.0" && rel.asi_url == "https://x/YapNotifierSA.asi" && rel.asi_sha256.empty());
 
     // no .asi asset at all -> still a valid release, nothing to download
     CHECK(parse_release("{\"tag_name\":\"v0.3.0\",\"assets\":[]}", rel));
     CHECK(rel.asi_url.empty());
+    // a FiveM-era release (YapNotifier.asi only) is not ours to install
+    CHECK(parse_release("{\"tag_name\":\"v0.4.1\",\"assets\":[{\"name\":\"YapNotifier.asi\",\"digest\":\"sha256:"
+                        "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd\","
+                        "\"browser_download_url\":\"https://x/YapNotifier.asi\"}]}", rel));
+    CHECK(rel.asi_url.empty() && rel.asi_sha256.empty());
 
     // not a release payload
     CHECK(!parse_release("{\"message\":\"Not Found\"}", rel));
@@ -282,6 +292,54 @@ int main() {
     CHECK(sec.size() == 1 && sec[0] == "older");
     CHECK(changelog_section(md, "0.3").empty());  // prefix of 0.3.0/0.3.1 must not match
     CHECK(changelog_section(md, "9.9.9").empty());
+
+    // --- D3D9 renderer math ----------------------------------------------------
+    namespace rm = yap::render_math;
+    CHECK(rm::d3d_color(0x11, 0x22, 0x33, 0x44) == 0x44112233u);  // RGBA bytes -> 0xAARRGGBB
+    float proj[16];
+    rm::ortho_projection(1920.f, 1080.f, proj);
+    float px = 0, py = 0;
+    rm::transform_point(proj, 0.5f, 0.5f, px, py);  // centre of the top-left pixel -> clip (-1, 1)
+    CHECK(std::fabs(px + 1.f) < 1e-5f && std::fabs(py - 1.f) < 1e-5f);
+    rm::transform_point(proj, 1920.5f, 1080.5f, px, py);  // far corner -> clip (1, -1)
+    CHECK(std::fabs(px - 1.f) < 1e-5f && std::fabs(py + 1.f) < 1e-5f);
+
+    // --- gta_sa.exe patching helpers --------------------------------------------
+    using yap::patch::call_rel;
+    using yap::patch::decode_call;
+    uintptr_t target = 0;
+    const uint8_t call[5] = {0xE8, 0x5A, 0xB6, 0x1D, 0x00};  // at 0x53EBB1 -> 0x71A210
+    CHECK(decode_call(call, 0x53EBB1, target) && target == 0x71A210);
+    const uint8_t back[5] = {0xE8, 0xF6, 0xFF, 0xFF, 0xFF};  // rel -10: a backwards call
+    CHECK(decode_call(back, 0x500000, target) && target == 0x4FFFFB);
+    const uint8_t jmp[5] = {0xE9, 0x5A, 0xB6, 0x1D, 0x00};   // a jmp is not a call
+    CHECK(!decode_call(jmp, 0x53EBB1, target));
+    CHECK(call_rel(0x53EBB1, 0x71A210) == 0x1DB65A);
+    CHECK(call_rel(0x500000, 0x4FFFFB) == -10);
+    CHECK(yap::patch::is_sa_10us(0x53EC8B55));   // 1.0 US compact
+    CHECK(yap::patch::is_sa_10us(0x16197BE9));   // 1.0 US hoodlum
+    CHECK(!yap::patch::is_sa_10us(0x12345678));  // anything else (EU, 1.01, Steam)
+
+    // --- samp.dll version from its PE header -------------------------------------
+    using yap::samp::Version;
+    std::vector<uint8_t> pe(0x400, 0);
+    pe[0] = 'M';
+    pe[1] = 'Z';
+    pe[0x3C] = 0x80;  // e_lfanew
+    pe[0x80] = 'P';
+    pe[0x81] = 'E';   // "PE\0\0"
+    const uint32_t ep = 0xFDB60;
+    std::memcpy(&pe[0x80 + 4 + 20 + 16], &ep, 4);  // signature, IMAGE_FILE_HEADER, OptionalHeader.AddressOfEntryPoint
+    CHECK(yap::samp::entry_point_rva(pe.data(), pe.size()) == 0xFDB60);
+    CHECK(yap::samp::version_from_entry(0xFDB60) == Version::DL_R1);
+    CHECK(yap::samp::version_from_entry(0xCBC90) == Version::Other);  // 0.3.7 R5
+    CHECK(yap::samp::version_from_entry(0) == Version::None);
+    pe[1] = 'X';
+    CHECK(yap::samp::entry_point_rva(pe.data(), pe.size()) == 0);  // not an MZ image
+    pe[1] = 'Z';
+    pe[0x3C] = 0xF0;
+    pe[0x3D] = 0x03;  // e_lfanew 0x3F0: the optional header would run past the buffer
+    CHECK(yap::samp::entry_point_rva(pe.data(), pe.size()) == 0);
 
     std::puts("test_parser: ok");
     return 0;

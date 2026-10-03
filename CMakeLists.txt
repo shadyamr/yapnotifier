@@ -101,7 +101,7 @@ ExternalProject_Add(ts3plugin_x64
 
 # --- Tests --------------------------------------------------------------------
 enable_testing()
-add_executable(test_parser tests/test_parser.cpp src/teamspeak.cpp src/update.cpp src/log.cpp src/config.cpp src/notify.cpp src/roster.cpp)
+add_executable(test_parser tests/test_parser.cpp src/teamspeak.cpp src/update.cpp src/log.cpp src/config.cpp src/notify.cpp src/roster.cpp src/patch.cpp src/samp.cpp)
 target_include_directories(test_parser PRIVATE src shared)
 target_link_libraries(test_parser PRIVATE ws2_32 winhttp bcrypt)
 target_compile_definitions(test_parser PRIVATE ${YAP_COMMON_DEFS})

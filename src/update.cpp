@@ -142,7 +142,8 @@ bool parse_release(std::string_view json, Release& out) {
     out.tag = quoted_after(json, "\"tag_name\":");
     if (out.tag.empty()) return false;
 
-    size_t asset = json.find("\"name\":\"YapNotifier.asi\"");
+    const std::string needle = "\"name\":\"" + std::string(kAsiAsset) + "\"";
+    size_t asset = json.find(needle);
     if (asset == std::string_view::npos) return true;  // release exists but has no .asi asset
     // GitHub emits browser_download_url last in each asset object, so it bounds this asset.
     size_t end = json.find("\"browser_download_url\":", asset);
@@ -230,7 +231,7 @@ void check_and_install(const std::filesystem::path& self, bool auto_install) {
         return;
     }
     if (rel.asi_url.empty() || rel.asi_sha256.empty()) {
-        log::error("update: release {} has no YapNotifier.asi asset with a digest; not installing", rel.tag);
+        log::error("update: release {} has no YapNotifierSA.asi asset with a digest; not installing", rel.tag);
         set_notice("YapNotifier " + rel.tag + " is available but cannot be verified - update manually");
         return;
     }
@@ -249,8 +250,8 @@ void check_and_install(const std::filesystem::path& self, bool auto_install) {
         return;
     }
     if (!swap_in(self, bytes)) return;
-    log::info("update: {} installed; takes effect on next FiveM start", rel.tag);
-    set_notice("YapNotifier " + rel.tag + " downloaded - restart FiveM to apply");
+    log::info("update: {} installed; takes effect on next GTA SA start", rel.tag);
+    set_notice("YapNotifier " + rel.tag + " downloaded - restart GTA SA to apply");
 }
 
 std::shared_ptr<const std::string> notice() { return g_notice.load(); }
